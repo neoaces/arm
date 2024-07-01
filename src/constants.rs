@@ -1,0 +1,1 @@
+pub const ARM_LENGTH: f32 = 100.0;
