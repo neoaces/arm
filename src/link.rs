@@ -16,7 +16,7 @@ impl Link {
         draw.line()
             .start(self.start)
             .end(self.end)
-            .weight(3.0)
+            .weight(10.0)
             .caps_round()
             .color(WHITE);
     }
