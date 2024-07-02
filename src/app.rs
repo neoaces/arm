@@ -1,6 +1,8 @@
-use crate::constants::{ARM_LENGTH, DEFAULT_TIMESTEP, INACTIVE_GREY};
+use crate::constants::{DEFAULT_TIMESTEP, INACTIVE_GREY, SCALE_FACTOR};
+use crate::joint::{Joint, MotorType};
 use crate::link::Link;
 use crate::settings::Settings;
+use crate::utils::rk4::solve_rk4;
 use nannou::prelude::*;
 use nannou_egui::{egui, Egui};
 
@@ -24,27 +26,42 @@ pub fn model(app: &App) -> Model {
     Model {
         egui,
         link: Link {
+            m: 0.05, // 50 kg
+            l: 0.2,  // 20cm - used as ARM_LENGTH
             start: pt2(0.0, 0.0),
-            end: pt2(0.0, ARM_LENGTH),
+            end: pt2(0.2 * SCALE_FACTOR, 0.0),
             angle: 0.0, // Angle in radians
+            joint: Joint::new(MotorType::NEO550, 32.0),
         },
         settings: Settings {
             timestep: DEFAULT_TIMESTEP,
+            current: 0.0,
+            arm_length: 0.2,
         },
     }
 }
 
 pub fn update(app: &App, model: &mut Model, update: Update) {
-    let time = app.time;
-    let old_angle = model.link.angle;
-    model.link.angle += model.settings.timestep;
+    let elapsed = update.since_last.as_secs_f32();
 
-    let mut pos = pt2(model.link.angle.cos(), model.link.angle.sin());
-    pos *= ARM_LENGTH;
+    // Update the model
+    model.link.l = model.settings.arm_length;
 
-    model.link.end = pos;
+    model.link.joint.v = solve_rk4(
+        model.link.joint.v,
+        model.settings.current,
+        elapsed,
+        model.link.alpha(),
+    ) * elapsed;
 
-    dbg!("{:#?}", &model.link);
+    model.link.angle += model.link.joint.v * elapsed;
+
+    model.link.end = pt2(
+        model.settings.arm_length * SCALE_FACTOR * model.link.angle.cos(),
+        model.settings.arm_length * SCALE_FACTOR * model.link.angle.sin(),
+    );
+
+    dbg!("{:?}", &model.link);
 
     // Egui updates
     let egui = &mut model.egui;
@@ -54,11 +71,12 @@ pub fn update(app: &App, model: &mut Model, update: Update) {
 
     egui::Window::new("Settings").show(&ctx, |ui| {
         // ui.label("Timestep");
-        ui.add(egui::Slider::new(&mut model.settings.timestep, 0.0..=0.05).text("Speed"));
+        ui.add(egui::Slider::new(&mut model.settings.current, -100.0..=100.0).text("Current"));
+        ui.add(egui::Slider::new(&mut model.settings.arm_length, 0.1..=0.4).text("Length"));
         ui.add_space(5.0);
         ui.add(egui::Label::new(format!(
-            "{:.2} rad/s",
-            (model.link.angle - old_angle) / update.since_last.as_secs_f32()
+            "Angular velocity: {:.2} rad/s",
+            model.link.joint.v
         )))
     });
 }
@@ -73,7 +91,7 @@ fn view(app: &App, model: &Model, frame: Frame) {
 
     draw.ellipse() // Draw the bounding circle
         .xy(model.link.start)
-        .radius(ARM_LENGTH)
+        .radius(model.settings.arm_length * SCALE_FACTOR)
         .stroke_color(INACTIVE_GREY)
         .color(BLACK)
         .stroke_weight(2.0);
