@@ -18,7 +18,7 @@ pub fn solve_rk4(x: f32, u: f32, t: f32, f: impl Fn(f32, f32) -> f32) -> f32 {
     let k4 = f(init_x + t * k3, init_u);
 
     debug!(
-        "Solving Runge-Kutta, 4th Order, k1: {}, k2: {}, k3: {}, k4: {} solved with timestep {}s, result {}",
+        "Solving Runge-Kutta, 4th Order, k1: {}, k2: {}, k3: {}, k4: {} solved with timestep {:.2}s, result {:.4}",
         k1,
         k2,
         k3,
